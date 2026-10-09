@@ -60,7 +60,7 @@ npm install
 npm run dev
 ```
 
-### Build APK Locally (Requires Android SDK & JDK 17)
+### Build APK Locally (Requires Android SDK & JDK 21)
 
 ```bash
 # 1. Build web bundle and sync to Android project
