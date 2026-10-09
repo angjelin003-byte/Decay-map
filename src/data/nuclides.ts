@@ -353,6 +353,8 @@ export interface RadionuclideDef {
 }
 
 const NOTABLE_RADIONUCLIDES: RadionuclideDef[] = [
+  // Free Neutron (Z=0, N=1)
+  { z: 0, n: 1, decayMode: 'beta_minus', halfLifeText: '10.2 min (611 s)', halfLifeSeconds: 611, daughterZ: 1, daughterN: 0, qValueMeV: 0.782, notes: 'Free neutron (n): Undergoes beta-minus decay (n → p + e⁻ + ν̅ₑ) with a half-life of 611 s' },
   // Cosmogenic & Light Radionuclides
   { z: 1, n: 2, decayMode: 'beta_minus', halfLifeText: '12.32 y', halfLifeSeconds: 3.88e8, daughterZ: 2, daughterN: 1, qValueMeV: 0.0186, notes: 'Tritium, thermonuclear tracer & luminescent watch paint' },
   { z: 4, n: 3, decayMode: 'beta_plus', halfLifeText: '53.22 d', halfLifeSeconds: 4.6e6, daughterZ: 3, daughterN: 4, qValueMeV: 0.862, notes: 'Beryllium-7 (Electron capture), cosmogenic' },
@@ -563,25 +565,83 @@ function buildNuclideDatabase(): Map<string, Nuclide> {
   }
 
   // 3. Systematically populate the nuclear landscape around the valley of stability
-  // Standard nuclear stability line: N ≈ Z + 0.006 * A^(5/3) or Green's formula: N ≈ Z * (1 + 0.0077 * A^(2/3))
-  for (let z = 1; z <= 118; z++) {
+  // and theoretical drip lines matching the full Chart of Nuclides
+  for (let z = 1; z <= 126; z++) {
     const el = ELEMENT_MAP.get(z);
     if (!el) continue;
 
-    // Determine center of valley for this Z
-    // For light elements N ≈ Z, for heavy elements N ≈ 1.5 * Z
-    const nCenter = Math.round(z <= 20 ? z : z * (1 + 0.006 * Math.pow(2 * z, 2/3)));
-    // Width of known isotopes on either side of center
-    const span = z < 10 ? 4 : z < 40 ? 7 : z < 80 ? 9 : 10;
-    const nMin = Math.max(0, nCenter - span);
-    const nMax = nCenter + span;
+    // Valley of stability center
+    const nCenter = Math.round(z <= 20 ? z : z * (1 + 0.006 * Math.pow(2 * z, 2 / 3)));
 
-    for (let n = nMin; n <= nMax; n++) {
+    // Known experimental boundaries (colored decay modes)
+    const expSpanLeft = z < 10 ? 3 : z < 40 ? 6 : z < 82 ? 8 : 11;
+    const expSpanRight = z < 10 ? 4 : z < 40 ? 8 : z < 82 ? 12 : 14;
+    const nExpMin = Math.max(0, nCenter - expSpanLeft);
+    const nExpMax = nCenter + expSpanRight;
+
+    // Full theoretical drip line boundaries (matching the photo's envelope)
+    // Proton drip line (left edge)
+    let nPDrip = 0;
+    if (z <= 8) {
+      nPDrip = Math.max(0, z - 2);
+    } else if (z <= 28) {
+      nPDrip = Math.max(0, Math.round(z * 0.75 - 1));
+    } else if (z <= 60) {
+      nPDrip = Math.max(0, Math.round(z * 0.85 - 2));
+    } else if (z <= 90) {
+      nPDrip = Math.max(0, Math.round(z * 0.95 - 4));
+    } else {
+      nPDrip = Math.max(0, Math.round(z * 1.05 - 6));
+    }
+
+    // Neutron drip line (wide lower-right edge in the photo)
+    let nNDrip = 0;
+    if (z <= 8) {
+      nNDrip = Math.round(z * 1.6 + 6);
+    } else if (z <= 20) {
+      nNDrip = Math.round(z * 1.6 + 10);
+    } else if (z <= 50) {
+      nNDrip = Math.round(z * 1.45 + 18);
+    } else if (z <= 82) {
+      nNDrip = Math.round(z * 1.35 + 28);
+    } else if (z <= 104) {
+      nNDrip = Math.round(z * 1.25 + 38);
+    } else {
+      nNDrip = Math.min(196, Math.round(z * 1.15 + 48));
+    }
+
+    for (let n = nPDrip; n <= nNDrip; n++) {
       const id = `${z}-${n}`;
       if (map.has(id)) continue; // Already explicitly defined
 
       const a = z + n;
-      // Determine physical decay mode based on position relative to valley and Z
+      const isOutsideExp = n < nExpMin || n > nExpMax;
+
+      if (isOutsideExp) {
+        // Predicted nuclide in theoretical drip-line region (grey in photo)
+        const nuclide: Nuclide = {
+          id,
+          z,
+          n,
+          a,
+          symbol: el.symbol,
+          elementName: el.name,
+          decayMode: 'predicted',
+          halfLifeText: 'Predicted (Theoretical)',
+          halfLifeSeconds: 0.001,
+          daughterZ: null,
+          daughterN: null,
+          qValueMeV: 2.0,
+          bindingEnergyPerNucleon: Number(calculateBindingEnergyPerNucleon(z, n).toFixed(3)),
+          isStable: false,
+          isPredicted: true,
+          notes: `Predicted nuclide near the ${n < nCenter ? 'proton' : 'neutron'} drip line`
+        };
+        map.set(id, nuclide);
+        continue;
+      }
+
+      // Inside experimental boundary: assign decay mode matching physical trends and photo
       let decayMode: DecayMode = 'beta_minus';
       let daughterZ: number | null = null;
       let daughterN: number | null = null;
@@ -591,34 +651,35 @@ function buildNuclideDatabase(): Map<string, Nuclide> {
 
       const deltaN = n - nCenter;
 
-      if (z >= 84) {
-        // Heavy nuclei beyond Pb/Bi predominantly alpha decay or SF
-        if (z >= 96 && deltaN > 6) {
+      if (z >= 82) {
+        // Heavy nuclei and actinides/superheavies
+        if (z >= 96 && deltaN > 7) {
           decayMode = 'sf';
           halfLifeText = 'Milliseconds';
           halfLifeSeconds = 0.05;
-        } else if (deltaN < -4) {
+        } else if (deltaN < 3) {
           decayMode = 'alpha';
           daughterZ = z - 2;
           daughterN = n - 2;
-          halfLifeText = 'Milliseconds';
-          halfLifeSeconds = 0.01;
-        } else if (deltaN > 4) {
+          halfLifeText = 'Days';
+          halfLifeSeconds = 86400 * 20;
+        } else {
           decayMode = 'beta_minus';
           daughterZ = z + 1;
           daughterN = n - 1;
           halfLifeText = 'Hours';
           halfLifeSeconds = 3600;
-        } else {
-          decayMode = 'alpha';
-          daughterZ = z - 2;
-          daughterN = n - 2;
-          halfLifeText = 'Days';
-          halfLifeSeconds = 86400 * 30;
         }
-      } else if (deltaN < -2) {
-        // Proton-rich side of the valley -> Beta plus / Electron Capture
-        if (deltaN < -6 && z > 20) {
+      } else if (z >= 60 && deltaN < -3) {
+        // Alpha decay branch in lanthanides
+        decayMode = 'alpha';
+        daughterZ = z - 2;
+        daughterN = n - 2;
+        halfLifeText = 'Hours';
+        halfLifeSeconds = 7200;
+      } else if (deltaN < 0) {
+        // Proton-rich side (Red/Magenta in photo)
+        if (deltaN <= -expSpanLeft + 1 && z > 15) {
           decayMode = 'proton';
           daughterZ = z - 1;
           daughterN = n;
@@ -632,37 +693,20 @@ function buildNuclideDatabase(): Map<string, Nuclide> {
           halfLifeSeconds = Math.max(0.1, 10000 / Math.pow(dist, 3));
           halfLifeText = formatHalfLifeSeconds(halfLifeSeconds);
         }
-      } else if (deltaN > 2) {
-        // Neutron-rich side of the valley -> Beta minus
-        if (deltaN > 7 && z > 10) {
-          decayMode = 'neutron';
-          daughterZ = z;
-          daughterN = n - 1;
-          halfLifeText = 'Milliseconds';
-          halfLifeSeconds = 0.005;
-        } else {
-          decayMode = 'beta_minus';
-          daughterZ = z + 1;
-          daughterN = n - 1;
-          const dist = Math.abs(deltaN);
-          halfLifeSeconds = Math.max(0.1, 10000 / Math.pow(dist, 3));
-          halfLifeText = formatHalfLifeSeconds(halfLifeSeconds);
-        }
+      } else if (deltaN > 0) {
+        // Neutron-rich side (Blue in photo)
+        decayMode = 'beta_minus';
+        daughterZ = z + 1;
+        daughterN = n - 1;
+        const dist = Math.abs(deltaN);
+        halfLifeSeconds = Math.max(0.1, 10000 / Math.pow(dist, 3));
+        halfLifeText = formatHalfLifeSeconds(halfLifeSeconds);
       } else {
-        // Close to valley center, radionuclides or quasi-stable
-        if (deltaN < 0) {
-          decayMode = 'beta_plus';
-          daughterZ = z - 1;
-          daughterN = n + 1;
-          halfLifeSeconds = 86400 * 20;
-          halfLifeText = 'Days to Years';
-        } else {
-          decayMode = 'beta_minus';
-          daughterZ = z + 1;
-          daughterN = n - 1;
-          halfLifeSeconds = 86400 * 15;
-          halfLifeText = 'Days to Years';
-        }
+        decayMode = 'beta_minus';
+        daughterZ = z + 1;
+        daughterN = n - 1;
+        halfLifeSeconds = 86400 * 15;
+        halfLifeText = 'Days to Years';
       }
 
       const nuclide: Nuclide = {
@@ -680,7 +724,8 @@ function buildNuclideDatabase(): Map<string, Nuclide> {
         qValueMeV: qValue,
         bindingEnergyPerNucleon: Number(calculateBindingEnergyPerNucleon(z, n).toFixed(3)),
         isStable: false,
-        notes: `Isotope of ${el.name} (${decayMode === 'beta_minus' ? 'β⁻ decay' : decayMode === 'beta_plus' ? 'β⁺/EC decay' : decayMode === 'alpha' ? 'α decay' : decayMode})`
+        isPredicted: false,
+        notes: `Isotope of ${el.name} (${decayMode === 'beta_minus' ? 'β⁻ decay' : decayMode === 'beta_plus' ? 'β⁺/EC decay' : decayMode === 'alpha' ? 'α decay' : decayMode === 'proton' ? 'p emission' : decayMode})`
       };
       map.set(id, nuclide);
     }

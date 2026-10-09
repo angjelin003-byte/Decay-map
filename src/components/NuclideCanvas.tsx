@@ -44,14 +44,30 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Coordinate transform state
-  // World space: N is x (0 to 185), Z is y (0 to 122).
-  // Screen space: screenX = originX + n * cellSize; screenY = originY - z * cellSize
+  // Coordinate transform state & synchronized ref to guarantee zero stale closures
+  // World space: N is x (0 to 196), Z is y (0 to 126).
+  // Screen space: screenX = originX + n * cellSize; screenY = originY - (z + 1) * cellSize
   const [cellSize, setCellSize] = useState<number>(6.5);
-  const [originX, setOriginX] = useState<number>(45);
+  const [originX, setOriginX] = useState<number>(55);
   const [originY, setOriginY] = useState<number>(550);
+  const [, setRenderTrigger] = useState<number>(0);
 
-  // Multi-touch 2-finger & pointer state
+  const coordsRef = useRef({
+    cellSize: 6.5,
+    originX: 55,
+    originY: 550,
+  });
+
+  const updateCoords = useCallback((newCellSize: number, newOriginX: number, newOriginY: number) => {
+    coordsRef.current.cellSize = newCellSize;
+    coordsRef.current.originX = newOriginX;
+    coordsRef.current.originY = newOriginY;
+    setCellSize(newCellSize);
+    setOriginX(newOriginX);
+    setOriginY(newOriginY);
+  }, []);
+
+  // Multi-touch 2-finger pinch & 1-finger pan gesture tracking
   const activePointersRef = useRef<Map<number, PointerRecord>>(new Map());
   const pinchStartRef = useRef<{
     dist: number;
@@ -61,14 +77,17 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
     originX: number;
     originY: number;
   } | null>(null);
+
   const singleDragStartRef = useRef<{
     startX: number;
     startY: number;
     originX: number;
     originY: number;
-    hasMoved: boolean;
+    totalMoved: number;
   } | null>(null);
+
   const hasPinchedRef = useRef(false);
+  const hasMountedRef = useRef(false);
 
   const [mouseCoord, setMouseCoord] = useState<{ n: number; z: number } | null>(null);
 
@@ -80,36 +99,41 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
       if (colorMode === 'decay_mode') {
         if (nuc.isStable) {
           return isDark
-            ? { fill: '#0f172a', stroke: '#475569', text: '#f8fafc' }
-            : { fill: '#0f172a', stroke: '#020617', text: '#ffffff' };
+            ? { fill: '#050811', stroke: '#334155', text: '#f8fafc' }
+            : { fill: '#000000', stroke: '#1e293b', text: '#ffffff' };
+        }
+        if (nuc.decayMode === 'predicted') {
+          return isDark
+            ? { fill: '#334155', stroke: '#1e293b', text: '#94a3b8' }
+            : { fill: '#cbd5e1', stroke: '#94a3b8', text: '#64748b' };
         }
         switch (nuc.decayMode) {
           case 'alpha':
             return isDark
               ? { fill: '#eab308', text: '#713f12' }
-              : { fill: '#ca8a04', text: '#ffffff' };
+              : { fill: '#facc15', text: '#713f12' }; // Yellow in photo
           case 'beta_minus':
             return isDark
-              ? { fill: '#0284c7', text: '#082f49' }
-              : { fill: '#0284c7', text: '#ffffff' };
+              ? { fill: '#2563eb', text: '#ffffff' }
+              : { fill: '#3b82f6', text: '#ffffff' }; // Blue in photo
           case 'beta_plus':
             return isDark
-              ? { fill: '#f97316', text: '#431407' }
-              : { fill: '#ea580c', text: '#ffffff' };
+              ? { fill: '#e11d48', text: '#ffffff' }
+              : { fill: '#f43f5e', text: '#ffffff' }; // Red/Magenta in photo
           case 'sf':
             return isDark
-              ? { fill: '#a855f7', text: '#3b0764' }
-              : { fill: '#9333ea', text: '#ffffff' };
+              ? { fill: '#9333ea', text: '#ffffff' }
+              : { fill: '#a855f7', text: '#ffffff' }; // Purple in photo
           case 'proton':
             return isDark
-              ? { fill: '#f43f5e', text: '#4c0519' }
-              : { fill: '#e11d48', text: '#ffffff' };
+              ? { fill: '#f97316', text: '#ffffff' }
+              : { fill: '#ea580c', text: '#ffffff' }; // Orange in photo
           case 'neutron':
             return isDark
               ? { fill: '#06b6d4', text: '#164e63' }
               : { fill: '#0891b2', text: '#ffffff' };
           default:
-            return { fill: '#64748b', text: '#ffffff' };
+            return { fill: '#94a3b8', text: '#ffffff' };
         }
       }
 
@@ -141,78 +165,69 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
     [colorMode, theme]
   );
 
-  // Set initial view centered nicely on stable valley and all 118 elements
+  // Set initial view centered nicely on full Chart of Nuclides
   const fitToView = useCallback(() => {
     if (!containerRef.current) return;
     const width = containerRef.current.clientWidth;
     const height = containerRef.current.clientHeight;
 
-    // Bounds: N: 0..185, Z: 0..122
-    const totalN = 190;
-    const totalZ = 125;
+    const totalN = 205;
+    const totalZ = 135;
 
-    const scaleX = (width - 60) / totalN;
+    const scaleX = (width - 65) / totalN;
     const scaleY = (height - 60) / totalZ;
-    const newCellSize = Math.max(2.5, Math.min(scaleX, scaleY));
+    const newCellSize = Math.max(2.2, Math.min(scaleX, scaleY));
 
-    setCellSize(newCellSize);
-    setOriginX(40);
-    setOriginY(height - 30);
-  }, []);
+    updateCoords(newCellSize, 52, height - 28);
+  }, [updateCoords]);
 
-  // Center on a specific nuclide
+  // Center on a specific nuclide (ONLY invoked on explicit "Center" button click)
   const centerOnNuclide = useCallback((nuc: Nuclide) => {
     if (!containerRef.current) return;
     const width = containerRef.current.clientWidth;
     const height = containerRef.current.clientHeight;
 
-    const targetCellSize = Math.max(cellSize, 16);
-    setCellSize(targetCellSize);
-    setOriginX(width / 2 - nuc.n * targetCellSize);
-    setOriginY(height / 2 + nuc.z * targetCellSize);
-  }, [cellSize]);
+    const curSize = coordsRef.current.cellSize;
+    const targetCellSize = Math.max(curSize, 16);
+    const newOx = width / 2 - nuc.n * targetCellSize;
+    const newOy = height / 2 + (nuc.z + 1) * targetCellSize;
 
-  // Initial fit on mount
+    updateCoords(targetCellSize, newOx, newOy);
+  }, [updateCoords]);
+
+  // Initial fit on mount only - NEVER reset or snap on subsequent resizes!
   useEffect(() => {
-    fitToView();
-    const handleResize = () => {
+    if (!hasMountedRef.current) {
       fitToView();
+      hasMountedRef.current = true;
+    }
+
+    const handleResize = () => {
+      // Re-render canvas without resetting pan coordinates or zoom
+      setRenderTrigger((prev) => prev + 1);
     };
+
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [fitToView]);
 
-  // Auto-center when selectedNuclide changes via search or preset
-  useEffect(() => {
-    if (selectedNuclide) {
-      if (!containerRef.current) return;
-      const width = containerRef.current.clientWidth;
-      const height = containerRef.current.clientHeight;
-      const screenX = originX + selectedNuclide.n * cellSize;
-      const screenY = originY - selectedNuclide.z * cellSize;
-
-      if (screenX < 45 || screenX > width - 45 || screenY < 45 || screenY > height - 45) {
-        centerOnNuclide(selectedNuclide);
-      }
-    }
-  }, [selectedNuclide, originX, originY, cellSize, centerOnNuclide]);
-
-  // Prevent default touch gestures directly on the canvas element for reliable 2-finger pinch
+  // Prevent default native gestures on the canvas element for complete control over pinch and pan
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const preventTouch = (e: TouchEvent) => {
-      if (e.touches.length >= 2) {
-        e.preventDefault();
-      }
+      e.preventDefault();
     };
 
     canvas.addEventListener('touchstart', preventTouch, { passive: false });
     canvas.addEventListener('touchmove', preventTouch, { passive: false });
+    canvas.addEventListener('touchend', preventTouch, { passive: false });
+
     return () => {
       canvas.removeEventListener('touchstart', preventTouch);
       canvas.removeEventListener('touchmove', preventTouch);
+      canvas.removeEventListener('touchend', preventTouch);
     };
   }, []);
 
@@ -236,6 +251,9 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
     ctx.scale(dpr, dpr);
 
     const isDark = theme === 'dark';
+    const curSize = coordsRef.current.cellSize;
+    const curOx = coordsRef.current.originX;
+    const curOy = coordsRef.current.originY;
 
     // Clear background
     ctx.fillStyle = isDark ? '#07090e' : '#f8fafc';
@@ -248,8 +266,8 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
     ctx.strokeStyle = isDark ? 'rgba(30, 41, 59, 0.45)' : 'rgba(226, 232, 240, 0.7)';
     ctx.lineWidth = 1;
 
-    for (let n = 0; n <= 185; n += 10) {
-      const sx = originX + n * cellSize;
+    for (let n = 0; n <= 190; n += 10) {
+      const sx = curOx + n * curSize;
       if (sx >= 0 && sx <= width) {
         ctx.beginPath();
         ctx.moveTo(sx, 0);
@@ -258,8 +276,8 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
       }
     }
 
-    for (let z = 0; z <= 122; z += 10) {
-      const sy = originY - z * cellSize;
+    for (let z = 0; z <= 126; z += 10) {
+      const sy = curOy - (z + 1) * curSize;
       if (sy >= 0 && sy <= height) {
         ctx.beginPath();
         ctx.moveTo(0, sy);
@@ -275,62 +293,88 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
       ctx.setLineDash([4, 4]);
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      const x0 = originX;
-      const y0 = originY;
-      const xMax = originX + 120 * cellSize;
-      const yMax = originY - 120 * cellSize;
+      const x0 = curOx;
+      const y0 = curOy - curSize;
+      const xMax = curOx + 120 * curSize;
+      const yMax = curOy - (120 + 1) * curSize;
       ctx.moveTo(x0, y0);
       ctx.lineTo(xMax, yMax);
       ctx.stroke();
 
-      if (cellSize >= 4.5) {
+      if (curSize >= 4.5) {
         ctx.fillStyle = isDark ? 'rgba(56, 189, 248, 0.7)' : 'rgba(14, 165, 233, 0.8)';
         ctx.font = '10px JetBrains Mono';
-        ctx.fillText('N = Z', originX + 25 * cellSize + 5, originY - 25 * cellSize - 5);
+        ctx.fillText('N = Z', curOx + 25 * curSize + 5, curOy - (25 + 1) * curSize - 5);
       }
       ctx.restore();
     }
 
-    // 3. Draw Magic Number lines if enabled (Z, N = 2, 8, 20, 28, 50, 82, 126)
+    // 3. Draw Magic Number lines if enabled
     if (showMagicNumbers) {
       ctx.save();
-      ctx.strokeStyle = isDark ? 'rgba(234, 179, 8, 0.35)' : 'rgba(202, 138, 4, 0.45)';
+      const magicColor = isDark ? '#f87171' : '#ef4444'; // Red matching photo
+      ctx.strokeStyle = magicColor;
       ctx.lineWidth = 1;
-      ctx.setLineDash([2, 3]);
 
-      MAGIC_NUMBERS.forEach((m) => {
+      // Solid magic numbers
+      const classicMagic = [2, 8, 20, 28, 50, 82, 126];
+      classicMagic.forEach((m) => {
         // Vertical magic N
-        const sx = originX + m * cellSize;
+        const sx = curOx + m * curSize;
         if (sx >= 0 && sx <= width) {
           ctx.beginPath();
           ctx.moveTo(sx, 0);
-          ctx.lineTo(sx, height);
+          ctx.lineTo(sx, height - 22);
           ctx.stroke();
 
-          ctx.fillStyle = isDark ? 'rgba(234, 179, 8, 0.6)' : 'rgba(202, 138, 4, 0.7)';
-          ctx.font = '9px JetBrains Mono';
-          ctx.fillText(`N=${m}`, sx + 2, height - 16);
+          ctx.fillStyle = magicColor;
+          ctx.font = 'bold 9px JetBrains Mono';
+          ctx.fillText(`${m}`, sx - 1, height - 26);
         }
 
         // Horizontal magic Z
-        const sy = originY - m * cellSize;
+        const sy = curOy - (m + 1) * curSize;
         if (sy >= 0 && sy <= height) {
           ctx.beginPath();
-          ctx.moveTo(0, sy);
+          ctx.moveTo(44, sy);
           ctx.lineTo(width, sy);
           ctx.stroke();
 
-          ctx.fillStyle = isDark ? 'rgba(234, 179, 8, 0.6)' : 'rgba(202, 138, 4, 0.7)';
-          ctx.font = '9px JetBrains Mono';
-          ctx.fillText(`Z=${m}`, 4, sy - 2);
+          ctx.fillStyle = magicColor;
+          ctx.font = 'bold 9px JetBrains Mono';
+          ctx.fillText(`${m}`, 48, sy - 2);
         }
       });
+
+      // Predicted magic numbers (dotted lines for 114, 184)
+      ctx.setLineDash([2, 2]);
+      const sy114 = curOy - (114 + 1) * curSize;
+      if (sy114 >= 0 && sy114 <= height) {
+        ctx.beginPath();
+        ctx.moveTo(44, sy114);
+        ctx.lineTo(width, sy114);
+        ctx.stroke();
+        ctx.fillStyle = magicColor;
+        ctx.font = 'bold 8px JetBrains Mono';
+        ctx.fillText('114...', width - 36, sy114 - 2);
+      }
+
+      const sx184 = curOx + 184 * curSize;
+      if (sx184 >= 0 && sx184 <= width) {
+        ctx.beginPath();
+        ctx.moveTo(sx184, 0);
+        ctx.lineTo(sx184, height - 22);
+        ctx.stroke();
+        ctx.fillStyle = magicColor;
+        ctx.font = 'bold 8px JetBrains Mono';
+        ctx.fillText('184', sx184 - 4, 16);
+      }
       ctx.restore();
     }
 
-    // 4. Render all nuclides (including superheavy elements 104-118)
-    const gap = cellSize > 12 ? 1 : 0.4;
-    const tileWidth = Math.max(1.5, cellSize - gap);
+    // 4. Render all nuclides (covering all elements 0-118 and drip lines)
+    const gap = curSize > 12 ? 1 : 0.4;
+    const tileWidth = Math.max(1.5, curSize - gap);
 
     const decayPathIds = new Set<string>();
     decaySteps.forEach((s) => {
@@ -339,22 +383,24 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
     });
 
     ALL_NUCLIDES.forEach((nuc) => {
-      const sx = originX + nuc.n * cellSize;
-      const sy = originY - (nuc.z + 1) * cellSize;
+      const sx = curOx + nuc.n * curSize;
+      const sy = curOy - (nuc.z + 1) * curSize;
 
-      if (sx + cellSize < 0 || sx > width || sy + cellSize < 0 || sy > height) {
+      if (sx + curSize < 0 || sx > width || sy + curSize < 0 || sy > height) {
         return;
       }
 
       const { fill, stroke, text } = getNuclideColor(nuc);
-      const isSelected = selectedNuclide?.id === nuc.id;
       const isInDecayPath = decayPathIds.has(nuc.id);
-      const isElementHighlighted = highlightElementZ !== undefined && highlightElementZ !== null && nuc.z === highlightElementZ;
+      const isElementHighlighted =
+        highlightElementZ !== undefined &&
+        highlightElementZ !== null &&
+        nuc.z === highlightElementZ;
 
       ctx.fillStyle = fill;
       ctx.fillRect(sx, sy, tileWidth, tileWidth);
 
-      if (stroke && cellSize > 8) {
+      if (stroke && curSize > 8) {
         ctx.strokeStyle = stroke;
         ctx.lineWidth = 0.5;
         ctx.strokeRect(sx, sy, tileWidth, tileWidth);
@@ -373,15 +419,15 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
       if (isInDecayPath) {
         ctx.save();
         ctx.strokeStyle = isDark ? '#38bdf8' : '#0284c7';
-        ctx.lineWidth = Math.min(2.5, cellSize * 0.25);
+        ctx.lineWidth = Math.min(2.5, curSize * 0.25);
         ctx.strokeRect(sx - 0.5, sy - 0.5, tileWidth + 1, tileWidth + 1);
         ctx.restore();
       }
 
       // Text label when zoomed in
-      if (cellSize >= 18) {
+      if (curSize >= 18) {
         ctx.fillStyle = text;
-        ctx.font = `${Math.min(9, Math.floor(cellSize * 0.36))}px JetBrains Mono`;
+        ctx.font = `${Math.min(9, Math.floor(curSize * 0.36))}px JetBrains Mono`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(`${nuc.a}${nuc.symbol}`, sx + tileWidth / 2, sy + tileWidth / 2);
@@ -391,15 +437,15 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
     // 5. Draw Decay Path Trajectory
     if (decaySteps.length > 0) {
       ctx.save();
-      ctx.lineWidth = Math.max(2, cellSize * 0.18);
+      ctx.lineWidth = Math.max(2, curSize * 0.18);
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
 
       decaySteps.forEach((step, idx) => {
-        const pSx = originX + step.parent.n * cellSize + tileWidth / 2;
-        const pSy = originY - (step.parent.z + 1) * cellSize + tileWidth / 2;
-        const dSx = originX + step.daughter.n * cellSize + tileWidth / 2;
-        const dSy = originY - (step.daughter.z + 1) * cellSize + tileWidth / 2;
+        const pSx = curOx + step.parent.n * curSize + tileWidth / 2;
+        const pSy = curOy - (step.parent.z + 1) * curSize + tileWidth / 2;
+        const dSx = curOx + step.daughter.n * curSize + tileWidth / 2;
+        const dSy = curOy - (step.daughter.z + 1) * curSize + tileWidth / 2;
 
         const isCurrentActive = activeStepIndex !== null && activeStepIndex === idx;
 
@@ -413,7 +459,7 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
         ctx.stroke();
 
         const angle = Math.atan2(dSy - pSy, dSx - pSx);
-        const headlen = Math.max(4, Math.min(12, cellSize * 0.4));
+        const headlen = Math.max(4, Math.min(12, curSize * 0.4));
         ctx.fillStyle = ctx.strokeStyle;
         ctx.beginPath();
         ctx.moveTo(dSx, dSy);
@@ -428,9 +474,9 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
         ctx.closePath();
         ctx.fill();
 
-        if (isCurrentActive) {
+        if (idx === 0) {
           ctx.beginPath();
-          ctx.arc(pSx, pSy, Math.max(3, cellSize * 0.35), 0, Math.PI * 2);
+          ctx.arc(pSx, pSy, Math.max(3, curSize * 0.35), 0, Math.PI * 2);
           ctx.fillStyle = '#38bdf8';
           ctx.fill();
         }
@@ -440,15 +486,15 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
 
     // 6. Selected Nuclide Target Reticle
     if (selectedNuclide) {
-      const sx = originX + selectedNuclide.n * cellSize;
-      const sy = originY - (selectedNuclide.z + 1) * cellSize;
+      const sx = curOx + selectedNuclide.n * curSize;
+      const sy = curOy - (selectedNuclide.z + 1) * curSize;
 
       ctx.save();
       ctx.strokeStyle = '#38bdf8';
       ctx.lineWidth = 2;
       ctx.strokeRect(sx - 2, sy - 2, tileWidth + 4, tileWidth + 4);
 
-      const bracketLen = Math.max(4, cellSize * 0.4);
+      const bracketLen = Math.max(4, curSize * 0.4);
       ctx.strokeStyle = isDark ? '#ffffff' : '#0284c7';
       ctx.lineWidth = 1.5;
 
@@ -481,8 +527,8 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
 
     // 7. Hovered Nuclide Halo
     if (hoveredNuclide && hoveredNuclide.id !== selectedNuclide?.id) {
-      const sx = originX + hoveredNuclide.n * cellSize;
-      const sy = originY - (hoveredNuclide.z + 1) * cellSize;
+      const sx = curOx + hoveredNuclide.n * curSize;
+      const sy = curOy - (hoveredNuclide.z + 1) * curSize;
       ctx.save();
       ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.7)' : 'rgba(15, 23, 42, 0.7)';
       ctx.lineWidth = 1.5;
@@ -490,71 +536,106 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
       ctx.restore();
     }
 
-    // 8. Sticky Axis Headers along edges (Compact 28px left, 22px bottom)
-    // Z axis along left
+    // 8. Sticky Axis Headers along edges (44px left with element symbols like the photo, 22px bottom)
+    const axisGutterLeft = 44;
+    const axisGutterBottom = 22;
+
+    // Z axis along left with ALL elements and symbols
     ctx.save();
     ctx.fillStyle = isDark ? '#0b0f19' : '#f1f5f9';
-    ctx.fillRect(0, 0, 28, height);
+    ctx.fillRect(0, 0, axisGutterLeft, height);
     ctx.strokeStyle = isDark ? '#1e293b' : '#cbd5e1';
     ctx.beginPath();
-    ctx.moveTo(28, 0);
-    ctx.lineTo(28, height);
+    ctx.moveTo(axisGutterLeft, 0);
+    ctx.lineTo(axisGutterLeft, height);
     ctx.stroke();
 
+    // Rotated axis title
     ctx.save();
-    ctx.translate(11, height / 2);
+    ctx.translate(9, height / 2);
     ctx.rotate(-Math.PI / 2);
     ctx.fillStyle = isDark ? '#94a3b8' : '#475569';
-    ctx.font = '600 9px JetBrains Mono';
+    ctx.font = 'bold 8px JetBrains Mono';
     ctx.textAlign = 'center';
-    ctx.fillText('Z (Protons)', 0, 0);
+    ctx.fillText('Z proton', 0, 0);
     ctx.restore();
 
     ctx.font = '9px JetBrains Mono';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = isDark ? '#94a3b8' : '#64748b';
 
-    for (let z = 0; z <= 118; z += 10) {
-      const sy = originY - z * cellSize;
-      if (sy >= 12 && sy <= height - 25) {
-        ctx.fillText(`${z}`, 25, sy);
+    // Draw element rows and symbols
+    for (let z = 0; z <= 126; z++) {
+      const sy = curOy - (z + 0.5) * curSize;
+      if (sy < 8 || sy > height - axisGutterBottom) continue;
+
+      const el = ELEMENT_MAP.get(z);
+      const isMagic = MAGIC_NUMBERS.includes(z as any);
+      const isLandmark = [1, 2, 6, 8, 14, 20, 26, 28, 50, 79, 82, 92, 94, 100, 114, 118].includes(z);
+      const isHighlighted = highlightElementZ === z || selectedNuclide?.z === z;
+      const shouldDraw =
+        curSize >= 7.5 ||
+        isMagic ||
+        isLandmark ||
+        isHighlighted ||
+        (curSize >= 4.5 && z % 5 === 0) ||
+        z % 10 === 0;
+
+      if (!shouldDraw) continue;
+
+      if (isHighlighted) {
+        // Highlight active element badge
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = 'bold 9px JetBrains Mono';
+        ctx.fillText(`${z} ${el?.symbol || ''}`, axisGutterLeft - 3, sy);
+
+        ctx.strokeStyle = '#38bdf8';
         ctx.beginPath();
-        ctx.moveTo(26, sy);
-        ctx.lineTo(28, sy);
+        ctx.moveTo(axisGutterLeft - 2, sy);
+        ctx.lineTo(axisGutterLeft, sy);
         ctx.stroke();
+      } else if (isMagic) {
+        ctx.fillStyle = isDark ? '#f87171' : '#ef4444';
+        ctx.font = 'bold 9px JetBrains Mono';
+        ctx.fillText(`${z} ${el?.symbol || ''}`, axisGutterLeft - 3, sy);
+      } else {
+        ctx.fillStyle = isDark ? '#94a3b8' : '#64748b';
+        ctx.font = curSize >= 7.5 ? '8.5px JetBrains Mono' : '8px JetBrains Mono';
+        const label = curSize >= 6 ? `${z} ${el?.symbol || ''}` : `${z}`;
+        ctx.fillText(label, axisGutterLeft - 3, sy);
       }
-    }
-    // Explicit 118 marker
-    const s118 = originY - 118 * cellSize;
-    if (s118 >= 10 && s118 <= height - 25) {
-      ctx.fillStyle = isDark ? '#38bdf8' : '#0284c7';
-      ctx.fillText('118', 25, s118);
+
+      // Small tick mark
+      ctx.strokeStyle = isDark ? '#334155' : '#cbd5e1';
+      ctx.beginPath();
+      ctx.moveTo(axisGutterLeft - 2, sy);
+      ctx.lineTo(axisGutterLeft, sy);
+      ctx.stroke();
     }
 
     // N axis along bottom
     ctx.fillStyle = isDark ? '#0b0f19' : '#f1f5f9';
-    ctx.fillRect(0, height - 22, width, 22);
+    ctx.fillRect(0, height - axisGutterBottom, width, axisGutterBottom);
     ctx.strokeStyle = isDark ? '#1e293b' : '#cbd5e1';
     ctx.beginPath();
-    ctx.moveTo(0, height - 22);
-    ctx.lineTo(width, height - 22);
+    ctx.moveTo(0, height - axisGutterBottom);
+    ctx.lineTo(width, height - axisGutterBottom);
     ctx.stroke();
 
     ctx.fillStyle = isDark ? '#94a3b8' : '#475569';
-    ctx.font = '600 9px JetBrains Mono';
+    ctx.font = 'bold 9px JetBrains Mono';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('N (Neutrons)', width / 2, height - 11);
+    ctx.fillText('N neutron number →', width / 2, height - 11);
 
     ctx.font = '9px JetBrains Mono';
     ctx.fillStyle = isDark ? '#94a3b8' : '#64748b';
-    for (let n = 0; n <= 180; n += 20) {
-      const sx = originX + n * cellSize;
-      if (sx >= 35 && sx <= width - 25) {
+    for (let n = 0; n <= 190; n += 20) {
+      const sx = curOx + n * curSize;
+      if (sx >= axisGutterLeft + 5 && sx <= width - 25) {
         ctx.fillText(`${n}`, sx, height - 11);
         ctx.beginPath();
-        ctx.moveTo(sx, height - 22);
+        ctx.moveTo(sx, height - axisGutterBottom);
         ctx.lineTo(sx, height - 18);
         ctx.stroke();
       }
@@ -574,13 +655,14 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
     showMagicNumbers,
     showNzLine,
     highlightElementZ,
-    getNuclideColor
+    getNuclideColor,
   ]);
 
-  // Pointer event handlers with 2-finger pinch zoom and pan
+  // Pointer event handlers with rock-solid, non-snapping 2-finger pinch zoom and 1-finger pan
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
+
     const clientX = e.clientX;
     const clientY = e.clientY;
 
@@ -596,6 +678,10 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
       // ignore
     }
 
+    const curSize = coordsRef.current.cellSize;
+    const curOx = coordsRef.current.originX;
+    const curOy = coordsRef.current.originY;
+
     if (activePointersRef.current.size === 2) {
       // Transition to 2-finger pinch
       hasPinchedRef.current = true;
@@ -606,11 +692,11 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
 
       pinchStartRef.current = {
         dist: Math.max(10, dist),
-        cellSize,
+        cellSize: curSize,
         midX,
         midY,
-        originX,
-        originY,
+        originX: curOx,
+        originY: curOy,
       };
       singleDragStartRef.current = null;
     } else if (activePointersRef.current.size === 1) {
@@ -619,9 +705,9 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
       singleDragStartRef.current = {
         startX: clientX,
         startY: clientY,
-        originX,
-        originY,
-        hasMoved: false,
+        originX: curOx,
+        originY: curOy,
+        totalMoved: 0,
       };
       pinchStartRef.current = null;
     }
@@ -647,7 +733,7 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
       const currMidY = (p1.y + p2.y) / 2 - rect.top;
 
       const ratio = currDist / pinchStartRef.current.dist;
-      const newCellSize = Math.max(2.5, Math.min(48, pinchStartRef.current.cellSize * ratio));
+      const newCellSize = Math.max(1.8, Math.min(48, pinchStartRef.current.cellSize * ratio));
 
       // Pin the world coordinate at the initial pinch midpoint
       const worldN = (pinchStartRef.current.midX - pinchStartRef.current.originX) / pinchStartRef.current.cellSize;
@@ -656,9 +742,7 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
       const newOriginX = currMidX - worldN * newCellSize;
       const newOriginY = currMidY + worldZ * newCellSize;
 
-      setCellSize(newCellSize);
-      setOriginX(newOriginX);
-      setOriginY(newOriginY);
+      updateCoords(newCellSize, newOriginX, newOriginY);
       return;
     }
 
@@ -666,23 +750,28 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
     if (singleDragStartRef.current && activePointersRef.current.size === 1) {
       const dx = e.clientX - singleDragStartRef.current.startX;
       const dy = e.clientY - singleDragStartRef.current.startY;
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-        singleDragStartRef.current.hasMoved = true;
-      }
-      setOriginX(singleDragStartRef.current.originX + dx);
-      setOriginY(singleDragStartRef.current.originY + dy);
+      singleDragStartRef.current.totalMoved = Math.hypot(dx, dy);
+
+      const newOriginX = singleDragStartRef.current.originX + dx;
+      const newOriginY = singleDragStartRef.current.originY + dy;
+
+      updateCoords(coordsRef.current.cellSize, newOriginX, newOriginY);
       return;
     }
 
-    // Hit test nuclide for probe when not dragging
+    // Probe nuclide when not dragging
+    const curSize = coordsRef.current.cellSize;
+    const curOx = coordsRef.current.originX;
+    const curOy = coordsRef.current.originY;
+
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
-    const n = Math.floor((screenX - originX) / cellSize);
-    const z = Math.floor((originY - screenY) / cellSize);
+    const n = Math.floor((screenX - curOx) / curSize);
+    const z = Math.floor((curOy - screenY) / curSize);
 
     setMouseCoord({ n, z });
 
-    if (n >= 0 && z >= 0 && n <= 185 && z <= 122) {
+    if (n >= 0 && z >= 0 && n <= 196 && z <= 126) {
       const hit = NUCLIDE_MAP.get(`${z}-${n}`);
       onHoverNuclide(hit || null);
     } else {
@@ -700,29 +789,37 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
     }
 
     if (activePointersRef.current.size === 1) {
-      // One finger still down after pinch, re-anchor single drag
+      // One finger still down after pinch: smoothly transition to single finger drag from CURRENT position
       const remaining = Array.from(activePointersRef.current.values())[0];
       singleDragStartRef.current = {
         startX: remaining.x,
         startY: remaining.y,
-        originX,
-        originY,
-        hasMoved: true, // prevent click trigger
+        originX: coordsRef.current.originX,
+        originY: coordsRef.current.originY,
+        totalMoved: 999, // Prevent click trigger
       };
       pinchStartRef.current = null;
       return;
     }
 
     if (activePointersRef.current.size === 0) {
-      // All fingers lifted
-      if (singleDragStartRef.current && !singleDragStartRef.current.hasMoved && !hasPinchedRef.current) {
-        // Registered clean tap / click on nuclide
+      // All fingers lifted: check if clean tap/click
+      const wasTap =
+        singleDragStartRef.current &&
+        singleDragStartRef.current.totalMoved < 5 &&
+        !hasPinchedRef.current;
+
+      if (wasTap) {
         const rect = canvasRef.current?.getBoundingClientRect();
         if (rect) {
+          const curSize = coordsRef.current.cellSize;
+          const curOx = coordsRef.current.originX;
+          const curOy = coordsRef.current.originY;
+
           const screenX = e.clientX - rect.left;
           const screenY = e.clientY - rect.top;
-          const n = Math.floor((screenX - originX) / cellSize);
-          const z = Math.floor((originY - screenY) / cellSize);
+          const n = Math.floor((screenX - curOx) / curSize);
+          const z = Math.floor((curOy - screenY) / curSize);
           const hit = NUCLIDE_MAP.get(`${z}-${n}`);
           if (hit) {
             onSelectNuclide(hit);
@@ -736,7 +833,7 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
     }
   };
 
-  // Mouse wheel zoom centered on cursor
+  // Mouse wheel zoom centered on cursor without any autosnapping
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -745,44 +842,60 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
     const cursorX = e.clientX - rect.left;
     const cursorY = e.clientY - rect.top;
 
+    const curSize = coordsRef.current.cellSize;
+    const curOx = coordsRef.current.originX;
+    const curOy = coordsRef.current.originY;
+
     const zoomFactor = e.deltaY < 0 ? 1.15 : 0.87;
-    const newCellSize = Math.max(2.5, Math.min(48, cellSize * zoomFactor));
+    const newCellSize = Math.max(1.8, Math.min(48, curSize * zoomFactor));
 
-    if (newCellSize === cellSize) return;
+    if (newCellSize === curSize) return;
 
-    const nAtCursor = (cursorX - originX) / cellSize;
-    const zAtCursor = (originY - cursorY) / cellSize;
+    const nAtCursor = (cursorX - curOx) / curSize;
+    const zAtCursor = (curOy - cursorY) / curSize;
 
     const newOriginX = cursorX - nAtCursor * newCellSize;
     const newOriginY = cursorY + zAtCursor * newCellSize;
 
-    setCellSize(newCellSize);
-    setOriginX(newOriginX);
-    setOriginY(newOriginY);
+    updateCoords(newCellSize, newOriginX, newOriginY);
   };
 
+  // Zoom In button (centered on current screen center)
   const zoomIn = () => {
     if (!containerRef.current) return;
     const w = containerRef.current.clientWidth / 2;
     const h = containerRef.current.clientHeight / 2;
-    const newCellSize = Math.min(48, cellSize * 1.25);
-    const nCenter = (w - originX) / cellSize;
-    const zCenter = (originY - h) / cellSize;
-    setCellSize(newCellSize);
-    setOriginX(w - nCenter * newCellSize);
-    setOriginY(h + zCenter * newCellSize);
+    const curSize = coordsRef.current.cellSize;
+    const curOx = coordsRef.current.originX;
+    const curOy = coordsRef.current.originY;
+
+    const newCellSize = Math.min(48, curSize * 1.25);
+    const nCenter = (w - curOx) / curSize;
+    const zCenter = (curOy - h) / curSize;
+
+    const newOx = w - nCenter * newCellSize;
+    const newOy = h + zCenter * newCellSize;
+
+    updateCoords(newCellSize, newOx, newOy);
   };
 
+  // Zoom Out button (centered on current screen center)
   const zoomOut = () => {
     if (!containerRef.current) return;
     const w = containerRef.current.clientWidth / 2;
     const h = containerRef.current.clientHeight / 2;
-    const newCellSize = Math.max(2.5, cellSize * 0.8);
-    const nCenter = (w - originX) / cellSize;
-    const zCenter = (originY - h) / cellSize;
-    setCellSize(newCellSize);
-    setOriginX(w - nCenter * newCellSize);
-    setOriginY(h + zCenter * newCellSize);
+    const curSize = coordsRef.current.cellSize;
+    const curOx = coordsRef.current.originX;
+    const curOy = coordsRef.current.originY;
+
+    const newCellSize = Math.max(1.8, curSize * 0.8);
+    const nCenter = (w - curOx) / curSize;
+    const zCenter = (curOy - h) / curSize;
+
+    const newOx = w - nCenter * newCellSize;
+    const newOy = h + zCenter * newCellSize;
+
+    updateCoords(newCellSize, newOx, newOy);
   };
 
   return (
@@ -806,8 +919,8 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
         className="w-full h-full cursor-crosshair block touch-none"
       />
 
-      {/* Floating Compact HUD Controls: Zoom, Fit, Magic, N=Z, 2-finger zoom indicator */}
-      <div className="absolute top-2 left-10 flex items-center gap-1 p-1 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm text-xs z-10">
+      {/* Floating Compact HUD Controls: Zoom, Fit, Center, Magic, N=Z */}
+      <div className="absolute top-2 left-12 flex items-center gap-1 p-1 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm text-xs z-10">
         <button
           onClick={zoomIn}
           title="Zoom In (+)"
@@ -888,12 +1001,12 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
             Probe: N={mouseCoord.n} Z={mouseCoord.z}
           </div>
         ) : (
-          <div className="text-slate-400">Pinch/scroll to zoom · Drag to pan</div>
+          <div className="text-slate-400">2-Finger Pinch / Drag to Pan · Tap to Select</div>
         )}
       </div>
 
       {/* Mini Displacement Cheat Sheet in bottom corner */}
-      <div className="absolute bottom-7 left-9 pointer-events-none hidden lg:flex flex-col gap-0.5 p-1.5 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md rounded border border-slate-200 dark:border-slate-800 text-[9px] font-mono text-slate-600 dark:text-slate-400 z-10">
+      <div className="absolute bottom-7 left-12 pointer-events-none hidden lg:flex flex-col gap-0.5 p-1.5 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md rounded border border-slate-200 dark:border-slate-800 text-[9px] font-mono text-slate-600 dark:text-slate-400 z-10">
         <div className="font-semibold text-slate-800 dark:text-slate-200 uppercase">
           Decay Vectors
         </div>

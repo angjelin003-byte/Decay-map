@@ -38,10 +38,10 @@ export const LegendModal: React.FC<LegendModalProps> = ({ isOpen, onClose }) => 
             </h4>
             <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-200 dark:border-slate-800 font-mono space-y-1">
               <div>
-                <span className="font-bold text-sky-600 dark:text-sky-400">Horizontal (X):</span> Neutron number <span className="text-slate-900 dark:text-slate-100 font-semibold">N</span> (0 to 160)
+                <span className="font-bold text-sky-600 dark:text-sky-400">Horizontal (X):</span> Neutron number <span className="text-slate-900 dark:text-slate-100 font-semibold">N</span> (0 to 196)
               </div>
               <div>
-                <span className="font-bold text-sky-600 dark:text-sky-400">Vertical (Y):</span> Proton number / Atomic number <span className="text-slate-900 dark:text-slate-100 font-semibold">Z</span> (1 to 100)
+                <span className="font-bold text-sky-600 dark:text-sky-400">Vertical (Y):</span> Proton number / Atomic number <span className="text-slate-900 dark:text-slate-100 font-semibold">Z</span> (1 to 126)
               </div>
               <div className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">
                 Diagonal dashed line indicates <span className="font-semibold text-sky-400">N = Z</span>. Heavy nuclei curve downward-right into neutron excess due to electrostatic repulsion.
@@ -56,50 +56,66 @@ export const LegendModal: React.FC<LegendModalProps> = ({ isOpen, onClose }) => 
             </h4>
             <div className="grid grid-cols-2 gap-2 font-mono">
               <div className="p-2 rounded bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-800 flex items-start gap-2">
-                <span className="w-3.5 h-3.5 rounded-sm bg-slate-900 dark:bg-slate-950 border border-slate-600 shrink-0 mt-0.5" />
+                <span className="w-3.5 h-3.5 rounded-sm bg-black border border-slate-600 shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-bold text-slate-900 dark:text-slate-100">Stable Isotope</div>
+                  <div className="font-bold text-slate-900 dark:text-slate-100">stable</div>
                   <div className="text-[10px] text-slate-500">T½ = ∞ · No decay</div>
                 </div>
               </div>
 
               <div className="p-2 rounded bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-800 flex items-start gap-2">
-                <span className="w-3.5 h-3.5 rounded-sm bg-amber-500 shrink-0 mt-0.5" />
+                <span className="w-3.5 h-3.5 rounded-sm bg-rose-600 shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-bold text-amber-600 dark:text-amber-400">α (Alpha)</div>
-                  <div className="text-[10px] text-slate-500">Emits ⁴He · ΔZ -2, ΔN -2 (↙)</div>
+                  <div className="font-bold text-rose-600 dark:text-rose-400">β⁺ / EC decay</div>
+                  <div className="text-[10px] text-slate-500">p → n + e⁺ · ΔZ -1, ΔN +1 (↘)</div>
                 </div>
               </div>
 
               <div className="p-2 rounded bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-800 flex items-start gap-2">
-                <span className="w-3.5 h-3.5 rounded-sm bg-sky-500 shrink-0 mt-0.5" />
+                <span className="w-3.5 h-3.5 rounded-sm bg-blue-600 shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-bold text-sky-600 dark:text-sky-400">β⁻ (Beta Minus)</div>
+                  <div className="font-bold text-blue-600 dark:text-blue-400">β⁻ decay</div>
                   <div className="text-[10px] text-slate-500">n → p + e⁻ · ΔZ +1, ΔN -1 (↖)</div>
+                </div>
+              </div>
+
+              <div className="p-2 rounded bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-800 flex items-start gap-2">
+                <span className="w-3.5 h-3.5 rounded-sm bg-yellow-400 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-bold text-yellow-600 dark:text-yellow-400">α decay</div>
+                  <div className="text-[10px] text-slate-500">Emits ⁴He · ΔZ -2, ΔN -2 (↙)</div>
                 </div>
               </div>
 
               <div className="p-2 rounded bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-800 flex items-start gap-2">
                 <span className="w-3.5 h-3.5 rounded-sm bg-orange-500 shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-bold text-orange-600 dark:text-orange-400">β⁺ / EC (Beta Plus)</div>
-                  <div className="text-[10px] text-slate-500">p → n + e⁺ · ΔZ -1, ΔN +1 (↘)</div>
+                  <div className="font-bold text-orange-600 dark:text-orange-400">p emission</div>
+                  <div className="text-[10px] text-slate-500">Proton drip line (↓)</div>
                 </div>
               </div>
 
               <div className="p-2 rounded bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-800 flex items-start gap-2">
-                <span className="w-3.5 h-3.5 rounded-sm bg-purple-500 shrink-0 mt-0.5" />
+                <span className="w-3.5 h-3.5 rounded-sm bg-purple-600 shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-bold text-purple-600 dark:text-purple-400">SF (Spontaneous Fission)</div>
-                  <div className="text-[10px] text-slate-500">Splits into fragments</div>
+                  <div className="font-bold text-purple-600 dark:text-purple-400">spontaneous fission</div>
+                  <div className="text-[10px] text-slate-500">Heavy element split</div>
                 </div>
               </div>
 
               <div className="p-2 rounded bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-800 flex items-start gap-2">
-                <span className="w-3.5 h-3.5 rounded-sm bg-rose-500 shrink-0 mt-0.5" />
+                <span className="w-3.5 h-3.5 rounded-sm bg-slate-400 dark:bg-slate-600 shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-bold text-rose-600 dark:text-rose-400">p / n Emission</div>
-                  <div className="text-[10px] text-slate-500">Beyond drip lines</div>
+                  <div className="font-bold text-slate-600 dark:text-slate-300">predicted</div>
+                  <div className="text-[10px] text-slate-500">Bound theoretical nuclides</div>
+                </div>
+              </div>
+
+              <div className="p-2 rounded bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-800 flex items-start gap-2">
+                <span className="w-3.5 h-0.5 bg-red-500 self-center shrink-0" />
+                <div>
+                  <div className="font-bold text-red-500">magic number</div>
+                  <div className="text-[10px] text-slate-500">2, 8, 20, 28, 50, 82, 126</div>
                 </div>
               </div>
             </div>

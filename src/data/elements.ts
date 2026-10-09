@@ -10,6 +10,7 @@ export interface ElementInfo {
 export const MAGIC_NUMBERS = [2, 8, 20, 28, 50, 82, 126] as const;
 
 export const ELEMENTS: ElementInfo[] = [
+  { z: 0, symbol: 'n', name: 'Neutron', period: 0, group: 0, category: 'Subatomic' },
   { z: 1, symbol: 'H', name: 'Hydrogen', period: 1, group: 1, category: 'Nonmetal' },
   { z: 2, symbol: 'He', name: 'Helium', period: 1, group: 18, category: 'Noble Gas' },
   { z: 3, symbol: 'Li', name: 'Lithium', period: 2, group: 1, category: 'Alkali Metal' },
@@ -128,6 +129,14 @@ export const ELEMENTS: ElementInfo[] = [
   { z: 116, symbol: 'Lv', name: 'Livermorium', period: 7, group: 16, category: 'Superheavy' },
   { z: 117, symbol: 'Ts', name: 'Tennessine', period: 7, group: 17, category: 'Superheavy' },
   { z: 118, symbol: 'Og', name: 'Oganesson', period: 7, group: 18, category: 'Superheavy' },
+  { z: 119, symbol: 'Uue', name: 'Ununennium', period: 8, group: 1, category: 'Superheavy' },
+  { z: 120, symbol: 'Ubn', name: 'Unbinilium', period: 8, group: 2, category: 'Superheavy' },
+  { z: 121, symbol: 'Ubu', name: 'Unbiunium', period: 8, group: 3, category: 'Superheavy' },
+  { z: 122, symbol: 'Ubb', name: 'Unbibium', period: 8, group: 4, category: 'Superheavy' },
+  { z: 123, symbol: 'Ubt', name: 'Unbitrium', period: 8, group: 5, category: 'Superheavy' },
+  { z: 124, symbol: 'Ubq', name: 'Unbiquadium', period: 8, group: 6, category: 'Superheavy' },
+  { z: 125, symbol: 'Ubp', name: 'Unbipentium', period: 8, group: 7, category: 'Superheavy' },
+  { z: 126, symbol: 'Ubh', name: 'Unbihexium', period: 8, group: 8, category: 'Superheavy' },
 ];
 
 export const ELEMENT_MAP = new Map<number, ElementInfo>(

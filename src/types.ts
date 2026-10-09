@@ -5,7 +5,8 @@ export type DecayMode =
   | 'alpha'
   | 'sf'
   | 'proton'
-  | 'neutron';
+  | 'neutron'
+  | 'predicted';
 
 export interface Nuclide {
   id: string; // `${z}-${n}`
@@ -22,6 +23,7 @@ export interface Nuclide {
   qValueMeV?: number;
   bindingEnergyPerNucleon?: number;
   isStable: boolean;
+  isPredicted?: boolean;
   notes?: string;
 }
 
