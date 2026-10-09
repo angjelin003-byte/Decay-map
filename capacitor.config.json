@@ -1,0 +1,6 @@
+{
+  "appId": "com.nucleidecaymap.app",
+  "appName": "Nuclide Decay Map",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}

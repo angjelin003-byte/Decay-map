@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Nuclide Decay Map</string>
+    <string name="title_activity_main">Nuclide Decay Map</string>
+    <string name="package_name">com.nucleidecaymap.app</string>
+    <string name="custom_url_scheme">com.nucleidecaymap.app</string>
+</resources>

@@ -1,0 +1,6 @@
+{
+  "name": "Interactive Nuclei Decay Map",
+  "description": "A compact, interactive chart of nuclides (Segrè chart) with radioactive decay paths, half-life mapping, and light/dark theme.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
