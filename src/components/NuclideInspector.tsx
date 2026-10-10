@@ -368,7 +368,7 @@ export const NuclideInspector: React.FC<NuclideInspectorProps> = ({
 
                       return (
                         <button
-                          key={idx}
+                          key={`h-${step.stepNumber}-${step.parent.id}-${step.daughter.id}`}
                           onClick={() => {
                             onSetActiveStepIndex(idx);
                             onSelectNuclide(step.daughter);
@@ -606,7 +606,7 @@ export const NuclideInspector: React.FC<NuclideInspectorProps> = ({
 
                     return (
                       <div
-                        key={idx}
+                        key={`v-${step.stepNumber}-${step.parent.id}-${step.daughter.id}`}
                         onClick={() => {
                           onSetActiveStepIndex(idx);
                           onSelectNuclide(step.daughter);
