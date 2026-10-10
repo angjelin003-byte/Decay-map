@@ -5,9 +5,10 @@ import { MAGIC_NUMBERS } from '../data/elements';
 interface LegendModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenParticles?: () => void;
 }
 
-export const LegendModal: React.FC<LegendModalProps> = ({ isOpen, onClose }) => {
+export const LegendModal: React.FC<LegendModalProps> = ({ isOpen, onClose, onOpenParticles }) => {
   if (!isOpen) return null;
 
   return (
@@ -133,6 +134,51 @@ export const LegendModal: React.FC<LegendModalProps> = ({ isOpen, onClose }) => 
               <p className="text-slate-600 dark:text-slate-400">
                 Nuclei with magic proton or neutron counts have extraordinarily high binding energy and stability (e.g. ⁴He, ¹⁶O, ⁴⁰Ca, ⁴⁸Ca, and ²⁰⁸Pb are doubly magic).
               </p>
+            </div>
+          </div>
+
+          {/* Section: Elementary Particles Guide & Map */}
+          <div>
+            <h4 className="font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-wider text-[11px] font-mono mb-2">
+              Elementary Particles & Force Fields
+            </h4>
+            <div className="p-3 bg-violet-50/70 dark:bg-violet-950/30 rounded-lg border border-violet-200 dark:border-violet-800/80 space-y-2">
+              <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                The Standard Model describes fundamental building blocks emerging from foundational boxes:
+              </p>
+              <div className="grid grid-cols-2 gap-2 font-mono text-[10px]">
+                <div className="p-1.5 bg-white dark:bg-slate-800 rounded border border-violet-100 dark:border-violet-900">
+                  <span className="font-bold text-violet-700 dark:text-violet-300">Quarks (Fermions):</span>
+                  <div className="text-slate-600 dark:text-slate-400 mt-0.5">Up (+2/3), Down (-1/3), Charm, Strange, Top, Bottom</div>
+                </div>
+                <div className="p-1.5 bg-white dark:bg-slate-800 rounded border border-violet-100 dark:border-violet-900">
+                  <span className="font-bold text-sky-700 dark:text-sky-300">Leptons & Gauge:</span>
+                  <div className="text-slate-600 dark:text-slate-400 mt-0.5">Electron, Muon, Tau, Neutrinos, Photon, W/Z, Gluon, Higgs</div>
+                </div>
+                <div className="p-1.5 bg-white dark:bg-slate-800 rounded border border-violet-100 dark:border-violet-900">
+                  <span className="font-bold text-emerald-700 dark:text-emerald-300">Hadrons (Main Boxes):</span>
+                  <div className="text-slate-600 dark:text-slate-400 mt-0.5">Proton (uud), Neutron (udd), Electron</div>
+                </div>
+                <div className="p-1.5 bg-white dark:bg-slate-800 rounded border border-violet-100 dark:border-violet-900">
+                  <span className="font-bold text-rose-700 dark:text-rose-300">Antimatter:</span>
+                  <div className="text-slate-600 dark:text-slate-400 mt-0.5">Antiproton, Antineutron, Positron (Antielectron)</div>
+                </div>
+              </div>
+
+              {onOpenParticles && (
+                <div className="pt-1 flex items-center justify-between">
+                  <span className="text-[10px] text-violet-700 dark:text-violet-300 font-mono">Interactive particles emergence map available</span>
+                  <button
+                    onClick={() => {
+                      onClose();
+                      onOpenParticles();
+                    }}
+                    className="px-3 py-1 text-xs font-mono font-semibold rounded bg-violet-600 hover:bg-violet-700 text-white shrink-0 shadow-sm"
+                  >
+                    Open Particles Map →
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

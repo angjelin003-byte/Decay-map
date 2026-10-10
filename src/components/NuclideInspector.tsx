@@ -14,7 +14,6 @@ import {
   ShieldCheck,
   Compass,
   Zap,
-  Activity,
   Layers
 } from 'lucide-react';
 
@@ -319,23 +318,25 @@ export const NuclideInspector: React.FC<NuclideInspectorProps> = ({
 
             {/* Tab 1: Physics Telemetry */}
             {mobileTab === 'overview' && (
-              <div className="grid grid-cols-3 gap-1 text-[10px] font-mono">
-                <div className="p-1 bg-slate-50 dark:bg-slate-800/60 rounded border border-slate-100 dark:border-slate-800">
-                  <span className="text-slate-400 block text-[9px]">Half-Life (T½)</span>
-                  <span className="font-semibold text-slate-900 dark:text-slate-100 truncate block">
-                    {selectedNuclide.halfLifeText}
-                  </span>
+              <div className="space-y-1">
+                <div className="grid grid-cols-2 gap-1 text-[10px] font-mono">
+                  <div className="p-1 bg-slate-50 dark:bg-slate-800/60 rounded border border-slate-100 dark:border-slate-800">
+                    <span className="text-slate-400 block text-[9px]">Half-Life (T½)</span>
+                    <span className="font-semibold text-slate-900 dark:text-slate-100 truncate block">
+                      {selectedNuclide.halfLifeText}
+                    </span>
+                  </div>
+                  <div className="p-1 bg-slate-50 dark:bg-slate-800/60 rounded border border-slate-100 dark:border-slate-800">
+                    <span className="text-slate-400 block text-[9px]">Total Path Q-Energy</span>
+                    <span className="font-semibold text-slate-900 dark:text-slate-100 truncate block">
+                      {decaySteps.reduce((sum, step) => sum + (step.parent.qValueMeV || 0), 0).toFixed(2)} MeV
+                    </span>
+                  </div>
                 </div>
-                <div className="p-1 bg-slate-50 dark:bg-slate-800/60 rounded border border-slate-100 dark:border-slate-800">
-                  <span className="text-slate-400 block text-[9px]">Q-Energy</span>
-                  <span className="font-semibold text-slate-900 dark:text-slate-100 truncate block">
-                    {selectedNuclide.qValueMeV ? `${selectedNuclide.qValueMeV.toFixed(2)} MeV` : '0 MeV'}
-                  </span>
-                </div>
-                <div className="p-1 bg-slate-50 dark:bg-slate-800/60 rounded border border-slate-100 dark:border-slate-800">
-                  <span className="text-slate-400 block text-[9px]">B.E./Nucleon</span>
-                  <span className="font-semibold text-slate-900 dark:text-slate-100 truncate block">
-                    {selectedNuclide.bindingEnergyPerNucleon ? `${selectedNuclide.bindingEnergyPerNucleon.toFixed(2)} MeV` : '—'}
+
+                <div className="flex items-center justify-between text-[9px] font-mono px-1.5 py-0.5 rounded bg-violet-50/60 dark:bg-violet-950/30 border border-violet-100 dark:border-violet-900/40">
+                  <span className="text-violet-700 dark:text-violet-300">
+                    Constituent Quarks: {selectedNuclide.z * 2 + selectedNuclide.n}u + {selectedNuclide.z + selectedNuclide.n * 2}d
                   </span>
                 </div>
               </div>
@@ -475,9 +476,9 @@ export const NuclideInspector: React.FC<NuclideInspectorProps> = ({
           </div>
 
           <div className="flex items-center justify-between py-0.5 px-1.5 rounded bg-slate-50 dark:bg-slate-800/40">
-            <span className="text-slate-500 text-[10px]">Q-Value / Energy:</span>
+            <span className="text-slate-500 text-[10px]">Total Path Q-Energy:</span>
             <span className="font-semibold text-slate-900 dark:text-slate-100">
-              {selectedNuclide.qValueMeV ? `${selectedNuclide.qValueMeV.toFixed(3)} MeV` : '0.00 MeV'}
+              {decaySteps.reduce((sum, step) => sum + (step.parent.qValueMeV || 0), 0).toFixed(3)} MeV
             </span>
           </div>
 
@@ -492,6 +493,16 @@ export const NuclideInspector: React.FC<NuclideInspectorProps> = ({
             <span className="text-slate-500 text-[10px]">N/Z Ratio:</span>
             <span className="font-semibold text-slate-900 dark:text-slate-100">
               {selectedNuclide.z > 0 ? (selectedNuclide.n / selectedNuclide.z).toFixed(3) : '∞'}
+            </span>
+          </div>
+        </div>
+
+        {/* 2.5 Constituent Quarks */}
+        <div className="px-3 py-1.5 border-b border-slate-200 dark:border-slate-800 bg-violet-50/40 dark:bg-violet-950/20">
+          <div className="text-[10px] font-mono">
+            <span className="text-slate-400 text-[9px] block">Constituent Quarks:</span>
+            <span className="font-semibold text-violet-700 dark:text-violet-300">
+              {selectedNuclide.z * 2 + selectedNuclide.n}u + {selectedNuclide.z + selectedNuclide.n * 2}d
             </span>
           </div>
         </div>

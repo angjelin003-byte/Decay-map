@@ -8,13 +8,11 @@ interface NuclideCanvasProps {
   theme: Theme;
   colorMode: ColorMode;
   selectedNuclide: Nuclide | null;
-  onSelectNuclide: (nuclide: Nuclide) => void;
+  onSelectNuclide: (nuclide: Nuclide | null) => void;
   hoveredNuclide: Nuclide | null;
   onHoverNuclide: (nuclide: Nuclide | null) => void;
   decaySteps: DecayStep[];
   activeStepIndex: number | null;
-  showMagicNumbers: boolean;
-  onToggleMagicNumbers: () => void;
   showNzLine: boolean;
   onToggleNzLine: () => void;
   highlightElementZ?: number | null;
@@ -35,8 +33,6 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
   onHoverNuclide,
   decaySteps,
   activeStepIndex,
-  showMagicNumbers,
-  onToggleMagicNumbers,
   showNzLine,
   onToggleNzLine,
   highlightElementZ,
@@ -310,9 +306,9 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
     }
 
     // 3. Draw Magic Number lines if enabled
-    if (showMagicNumbers) {
+    if (false) {
       ctx.save();
-      const magicColor = isDark ? '#f87171' : '#ef4444'; // Red matching photo
+      const magicColor = isDark ? '#f87171' : '#ef4444'; // Red matching Segrè chart standards
       ctx.strokeStyle = magicColor;
       ctx.lineWidth = 1;
 
@@ -329,7 +325,7 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
 
           ctx.fillStyle = magicColor;
           ctx.font = 'bold 9px JetBrains Mono';
-          ctx.fillText(`${m}`, sx - 1, height - 26);
+          ctx.fillText(`N=${m}`, sx - 1, height - 26);
         }
 
         // Horizontal magic Z
@@ -342,7 +338,7 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
 
           ctx.fillStyle = magicColor;
           ctx.font = 'bold 9px JetBrains Mono';
-          ctx.fillText(`${m}`, 48, sy - 2);
+          ctx.fillText(`Z=${m}`, 48, sy - 2);
         }
       });
 
@@ -356,7 +352,7 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
         ctx.stroke();
         ctx.fillStyle = magicColor;
         ctx.font = 'bold 8px JetBrains Mono';
-        ctx.fillText('114...', width - 36, sy114 - 2);
+        ctx.fillText('Z=114...', width - 44, sy114 - 2);
       }
 
       const sx184 = curOx + 184 * curSize;
@@ -367,8 +363,39 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
         ctx.stroke();
         ctx.fillStyle = magicColor;
         ctx.font = 'bold 8px JetBrains Mono';
-        ctx.fillText('184', sx184 - 4, 16);
+        ctx.fillText('N=184', sx184 - 4, 16);
       }
+      ctx.setLineDash([]);
+
+      // Highlight Doubly Magic Nuclei Intersections (⁴He, ¹⁶O, ⁴⁰Ca, ⁴⁸Ca, ⁵⁶Ni, ²⁰⁸Pb)
+      const doublyMagic: [number, number, string][] = [
+        [2, 2, '⁴He'],
+        [8, 8, '¹⁶O'],
+        [20, 20, '⁴⁰Ca'],
+        [20, 28, '⁴⁸Ca'],
+        [28, 28, '⁵⁶Ni'],
+        [28, 50, '⁷⁸Ni'],
+        [50, 50, '¹⁰⁰Sn'],
+        [50, 82, '¹³²Sn'],
+        [82, 126, '²⁰⁸Pb'],
+      ];
+
+      doublyMagic.forEach(([z, n, label]) => {
+        const sx = curOx + n * curSize;
+        const sy = curOy - (z + 1) * curSize;
+        if (sx >= 0 && sx <= width && sy >= 0 && sy <= height) {
+          ctx.strokeStyle = '#f59e0b';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(sx - 2, sy - 2, curSize + 4, curSize + 4);
+
+          if (curSize >= 9) {
+            ctx.fillStyle = isDark ? '#fbbf24' : '#b45309';
+            ctx.font = 'bold 8px JetBrains Mono';
+            ctx.fillText(label, sx + curSize + 2, sy + curSize * 0.7);
+          }
+        }
+      });
+
       ctx.restore();
     }
 
@@ -652,7 +679,6 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
     hoveredNuclide,
     decaySteps,
     activeStepIndex,
-    showMagicNumbers,
     showNzLine,
     highlightElementZ,
     getNuclideColor,
@@ -823,6 +849,9 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
           const hit = NUCLIDE_MAP.get(`${z}-${n}`);
           if (hit) {
             onSelectNuclide(hit);
+          } else {
+            // Tap outside / empty area: deselect!
+            onSelectNuclide(null);
           }
         }
       }
@@ -920,7 +949,7 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
       />
 
       {/* Floating Compact HUD Controls: Zoom, Fit, Center, Magic, N=Z */}
-      <div className="absolute top-2 left-12 flex items-center gap-1 p-1 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm text-xs z-10">
+      <div className="absolute top-2 left-12 flex items-center gap-1 flex-wrap p-1 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm text-xs z-10">
         <button
           onClick={zoomIn}
           title="Zoom In (+)"
@@ -954,18 +983,6 @@ export const NuclideCanvas: React.FC<NuclideCanvasProps> = ({
             <span className="hidden sm:inline">Center</span>
           </button>
         )}
-        <div className="w-[1px] h-3.5 bg-slate-200 dark:bg-slate-700 mx-0.5" />
-        <button
-          onClick={onToggleMagicNumbers}
-          title="Toggle Nuclear Shell Magic Numbers"
-          className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors ${
-            showMagicNumbers
-              ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 font-semibold'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-          }`}
-        >
-          Magic
-        </button>
         <button
           onClick={onToggleNzLine}
           title="Toggle N=Z symmetry line"

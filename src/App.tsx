@@ -11,6 +11,16 @@ import { NuclideCanvas } from './components/NuclideCanvas';
 import { NuclideInspector } from './components/NuclideInspector';
 import { LegendModal } from './components/LegendModal';
 import { PeriodicTableDrawer } from './components/PeriodicTableDrawer';
+import { ParticlesModal } from './components/ParticlesModal';
+import { ParticlesCanvas, ParticleNameVisibility } from './components/ParticlesCanvas';
+import { ParticleInspector } from './components/ParticleInspector';
+import {
+  ELEMENTARY_PARTICLES,
+  PARTICLE_MAP,
+  ElementaryParticle,
+  CompositeHub,
+  HUB_MAP
+} from './data/particles';
 
 export default function App() {
   // Theme state: defaults to dark for scientific telemetry visual language
@@ -35,11 +45,27 @@ export default function App() {
   const [highlightElementZ, setHighlightElementZ] = useState<number | null>(92);
 
   // Shell and reference overlays
-  const [showMagicNumbers, setShowMagicNumbers] = useState(true);
+
   const [showNzLine, setShowNzLine] = useState(true);
 
   // Guide modal state
   const [isLegendOpen, setIsLegendOpen] = useState(false);
+
+  // Elementary Particles, Antiparticles & Force Fields modal state
+  const [isParticlesOpen, setIsParticlesOpen] = useState(false);
+
+  // Parallel View mode state: 'nuclides' | 'particles' | 'split'
+  const [appViewMode, setAppViewMode] = useState<'nuclides' | 'particles' | 'split'>('nuclides');
+
+  // Elementary particles map state
+  const [selectedParticle, setSelectedParticle] = useState<ElementaryParticle | null>(() => {
+    return PARTICLE_MAP.get('electron') || ELEMENTARY_PARTICLES[0];
+  });
+  const [selectedHub, setSelectedHub] = useState<CompositeHub | null>(null);
+  const [showForceFields, setShowForceFields] = useState(true);
+  const [showWeakDoublets, setShowWeakDoublets] = useState(true);
+  const [showMassContours, setShowMassContours] = useState(true);
+  const [particleNameVisibility, setParticleNameVisibility] = useState<ParticleNameVisibility>('compact');
 
   // Decay simulation state
   const [decaySteps, setDecaySteps] = useState<DecayStep[]>(() => {
@@ -65,22 +91,47 @@ export default function App() {
   };
 
   // When selected nuclide changes, compute its radioactive decay path
-  const handleSelectNuclide = useCallback((nuclide: Nuclide) => {
+  const handleSelectNuclide = useCallback((nuclide: Nuclide | null) => {
     setSelectedNuclide(nuclide);
-    setHighlightElementZ(nuclide.z);
+    if (nuclide) setHighlightElementZ(nuclide.z);
     setIsSimulating(false);
     if (simulationTimerRef.current) {
       window.clearInterval(simulationTimerRef.current);
       simulationTimerRef.current = null;
     }
 
-    if (nuclide.isStable) {
+    if (nuclide) {
+      if (nuclide.isStable) {
+        setDecaySteps([]);
+        setActiveStepIndex(null);
+      } else {
+        const steps = traceDecayPath(nuclide.z, nuclide.n);
+        setDecaySteps(steps);
+        setActiveStepIndex(0);
+
+        // Link nuclear decay with subatomic particles and emergence origin
+        if (nuclide.decayMode === 'beta_minus') {
+          const p = PARTICLE_MAP.get('w-minus');
+          if (p) setSelectedParticle(p);
+          const hub = HUB_MAP.get('neutron-hub');
+          if (hub) setSelectedHub(hub);
+        } else if (nuclide.decayMode === 'beta_plus') {
+          const p = PARTICLE_MAP.get('positron');
+          if (p) setSelectedParticle(p);
+          const hub = HUB_MAP.get('proton-hub');
+          if (hub) setSelectedHub(hub);
+        } else if (nuclide.decayMode === 'alpha') {
+          const p = PARTICLE_MAP.get('gluon');
+          if (p) setSelectedParticle(p);
+          const hub = HUB_MAP.get('proton-hub');
+          if (hub) setSelectedHub(hub);
+        }
+      }
+    } else {
       setDecaySteps([]);
       setActiveStepIndex(null);
-    } else {
-      const steps = traceDecayPath(nuclide.z, nuclide.n);
-      setDecaySteps(steps);
-      setActiveStepIndex(0);
+      setSelectedParticle(null);
+      setSelectedHub(null);
     }
   }, []);
 
@@ -187,41 +238,157 @@ export default function App() {
         onSelectPreset={handleSelectPreset}
         onOpenLegend={() => setIsLegendOpen(true)}
         onOpenPeriodicTable={() => setIsPeriodicTableOpen(true)}
+        appViewMode={appViewMode}
+        onChangeAppViewMode={setAppViewMode}
       />
 
-      {/* 2. Main Workspace: Canvas Stage + Ultra Compact Collapsible Inspector */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
-        {/* Interactive Segrè Chart Canvas Viewport with 2-finger zoom and pan */}
-        <NuclideCanvas
-          theme={theme}
-          colorMode={colorMode}
-          selectedNuclide={selectedNuclide}
-          onSelectNuclide={handleSelectNuclide}
-          hoveredNuclide={hoveredNuclide}
-          onHoverNuclide={setHoveredNuclide}
-          decaySteps={decaySteps}
-          activeStepIndex={activeStepIndex}
-          showMagicNumbers={showMagicNumbers}
-          onToggleMagicNumbers={() => setShowMagicNumbers((prev) => !prev)}
-          showNzLine={showNzLine}
-          onToggleNzLine={() => setShowNzLine((prev) => !prev)}
-          highlightElementZ={highlightElementZ}
-        />
+      {/* 2. Main Workspace: Parallel Panel Architecture */}
+      {appViewMode === 'nuclides' && (
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+          {/* Interactive Segrè Chart Canvas Viewport with 2-finger zoom and pan */}
+          <NuclideCanvas
+            theme={theme}
+            colorMode={colorMode}
+            selectedNuclide={selectedNuclide}
+            onSelectNuclide={handleSelectNuclide}
+            hoveredNuclide={hoveredNuclide}
+            onHoverNuclide={setHoveredNuclide}
+            decaySteps={decaySteps}
+            activeStepIndex={activeStepIndex}
 
-        {/* Compact Right Inspector & Decay Simulator */}
-        <NuclideInspector
-          selectedNuclide={selectedNuclide}
-          onSelectNuclide={handleSelectNuclide}
-          decaySteps={decaySteps}
-          activeStepIndex={activeStepIndex}
-          onSetActiveStepIndex={setActiveStepIndex}
-          onStartSimulation={handleStartSimulation}
-          onStopSimulation={handleStopSimulation}
-          isSimulating={isSimulating}
-          onStepForward={handleStepForward}
-          onResetSimulation={handleResetSimulation}
-        />
-      </div>
+            showNzLine={showNzLine}
+            onToggleNzLine={() => setShowNzLine((prev) => !prev)}
+            highlightElementZ={highlightElementZ}
+          />
+
+          {/* Compact Inspector & Decay Simulator */}
+          <NuclideInspector
+            selectedNuclide={selectedNuclide}
+            onSelectNuclide={handleSelectNuclide}
+            decaySteps={decaySteps}
+            activeStepIndex={activeStepIndex}
+            onSetActiveStepIndex={setActiveStepIndex}
+            onStartSimulation={handleStartSimulation}
+            onStopSimulation={handleStopSimulation}
+            isSimulating={isSimulating}
+            onStepForward={handleStepForward}
+            onResetSimulation={handleResetSimulation}
+          />
+        </div>
+      )}
+
+      {appViewMode === 'particles' && (
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+          {/* Parallel Interactive Elementary Particles & Force Fields Canvas */}
+          <ParticlesCanvas
+            theme={theme}
+            colorMode={colorMode}
+            selectedParticle={selectedParticle}
+            onSelectParticle={(p) => {
+              setSelectedParticle(p);
+              setSelectedHub(null);
+            }}
+            showForceFields={showForceFields}
+            onToggleForceFields={() => setShowForceFields((prev) => !prev)}
+            showWeakDoublets={showWeakDoublets}
+            onToggleWeakDoublets={() => setShowWeakDoublets((prev) => !prev)}
+            showMassContours={showMassContours}
+            onToggleMassContours={() => setShowMassContours((prev) => !prev)}
+            selectedHubId={selectedHub?.id || null}
+            onSelectHub={setSelectedHub}
+            nameVisibility={particleNameVisibility}
+            onNameVisibilityChange={setParticleNameVisibility}
+          />
+
+          {/* Parallel Particle Inspector */}
+          <ParticleInspector
+            selectedParticle={selectedParticle}
+            onSelectParticle={(p) => {
+              setSelectedParticle(p);
+              setSelectedHub(null);
+            }}
+            selectedHub={selectedHub}
+            onSelectHub={setSelectedHub}
+          />
+        </div>
+      )}
+
+      {appViewMode === 'split' && (
+        <div className="flex-1 flex flex-col overflow-hidden relative">
+          {/* Dual Parallel Canvases Side-by-Side */}
+          <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+            {/* Left Parallel Panel: Nuclide Decay Map */}
+            <div className="flex-1 h-full border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-800 relative">
+              <div className="absolute top-2 left-14 z-20 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-white/85 dark:bg-slate-900/85 text-sky-600 dark:text-sky-400 border border-slate-200 dark:border-slate-800 shadow-sm pointer-events-none">
+                Segrè Chart (Isotopes N vs Z)
+              </div>
+              <NuclideCanvas
+                theme={theme}
+                colorMode={colorMode}
+                selectedNuclide={selectedNuclide}
+                onSelectNuclide={handleSelectNuclide}
+                hoveredNuclide={hoveredNuclide}
+                onHoverNuclide={setHoveredNuclide}
+                decaySteps={decaySteps}
+                activeStepIndex={activeStepIndex}
+                showNzLine={showNzLine}
+                onToggleNzLine={() => setShowNzLine((prev) => !prev)}
+                highlightElementZ={highlightElementZ}
+              />
+            </div>
+
+
+            <ParticlesCanvas
+                theme={theme}
+                colorMode={colorMode}
+                selectedParticle={selectedParticle}
+                onSelectParticle={(p) => {
+                  setSelectedParticle(p);
+                  setSelectedHub(null);
+                }}
+                showForceFields={showForceFields}
+                onToggleForceFields={() => setShowForceFields((prev) => !prev)}
+                showWeakDoublets={showWeakDoublets}
+                onToggleWeakDoublets={() => setShowWeakDoublets((prev) => !prev)}
+                showMassContours={showMassContours}
+                onToggleMassContours={() => setShowMassContours((prev) => !prev)}
+                selectedHubId={selectedHub?.id || null}
+                onSelectHub={setSelectedHub}
+                nameVisibility={particleNameVisibility}
+                onNameVisibilityChange={setParticleNameVisibility}
+              />
+            </div>
+
+          {/* Bottom Dock: Side-by-side Dual Inspectors */}
+          <div className="flex flex-col sm:flex-row border-t border-slate-200 dark:border-slate-800 shrink-0">
+            <div className="flex-1 border-b sm:border-b-0 sm:border-r border-slate-200 dark:border-slate-800">
+              <NuclideInspector
+                selectedNuclide={selectedNuclide}
+                onSelectNuclide={handleSelectNuclide}
+                decaySteps={decaySteps}
+                activeStepIndex={activeStepIndex}
+                onSetActiveStepIndex={setActiveStepIndex}
+                onStartSimulation={handleStartSimulation}
+                onStopSimulation={handleStopSimulation}
+                isSimulating={isSimulating}
+                onStepForward={handleStepForward}
+                onResetSimulation={handleResetSimulation}
+              />
+            </div>
+            <div className="flex-1">
+              <ParticleInspector
+                selectedParticle={selectedParticle}
+                onSelectParticle={(p) => {
+                  setSelectedParticle(p);
+                  setSelectedHub(null);
+                }}
+                selectedHub={selectedHub}
+                onSelectHub={setSelectedHub}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 3. Periodic Table Drawer (All 118 Elements) */}
       <PeriodicTableDrawer
@@ -236,6 +403,12 @@ export default function App() {
       <LegendModal
         isOpen={isLegendOpen}
         onClose={() => setIsLegendOpen(false)}
+      />
+
+      {/* 5. Elementary Particles, Antiparticles & Force Fields Panel */}
+      <ParticlesModal
+        isOpen={isParticlesOpen}
+        onClose={() => setIsParticlesOpen(false)}
       />
     </div>
   );
