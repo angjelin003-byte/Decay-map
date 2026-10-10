@@ -19,8 +19,8 @@ interface CompactHeaderProps {
   onSelectPreset: (key: string) => void;
   onOpenLegend: () => void;
   onOpenPeriodicTable: () => void;
-  appViewMode: 'nuclides' | 'particles' | 'split';
-  onChangeAppViewMode: (mode: 'nuclides' | 'particles' | 'split') => void;
+  appViewMode: 'nuclides' | 'particles';
+  onChangeAppViewMode: (mode: 'nuclides' | 'particles') => void;
 }
 
 export const CompactHeader: React.FC<CompactHeaderProps> = ({
@@ -64,32 +64,20 @@ export const CompactHeader: React.FC<CompactHeaderProps> = ({
           </span>
         </div>
 
-        {/* Parallel Mode Switcher: Nuclides Map | Particles & Forces Map | Split View */}
-        <div className="flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 font-mono text-[10px]">
-          <button
-            onClick={() => onChangeAppViewMode('nuclides')}
-            title="Show Isotope Decay Map (Segrè Chart)"
-            className={`px-1.5 py-0.5 rounded transition-colors ${
-              appViewMode === 'nuclides'
-                ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 shadow-sm font-bold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-            }`}
-          >
-            Nuclides
-          </button>
-
-          <button
-            onClick={() => onChangeAppViewMode('split')}
-            title="Parallel Split View: Both Maps Side-by-Side"
-            className={`px-1.5 py-0.5 rounded transition-colors hidden sm:inline-block ${
-              appViewMode === 'split'
-                ? 'bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-300 shadow-sm font-bold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-            }`}
-          >
-            Split ⫴
-          </button>
-        </div>
+          {/* Parallel Mode Switcher: Nuclides Map | Particles & Forces Map */}
+          <div className="flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 font-mono text-[10px]">
+            <button
+              onClick={() => onChangeAppViewMode('nuclides')}
+              title="Show Isotope Decay Map (Segrè Chart)"
+              className={`px-1.5 py-0.5 rounded transition-colors ${
+                appViewMode === 'nuclides'
+                  ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 shadow-sm font-bold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              Nuclides
+            </button>
+          </div>
 
         {/* 118 Elements Table Launcher */}
         <button
@@ -108,7 +96,7 @@ export const CompactHeader: React.FC<CompactHeaderProps> = ({
             onClick={() => setShowViewDropdown(!showViewDropdown)}
             className="flex items-center gap-1 px-1.5 py-1 text-[11px] font-mono rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
           >
-            <span>{appViewMode === 'nuclides' ? 'Decay Map' : appViewMode === 'particles' ? 'Particles Map' : 'Split Map'}</span>
+            <span>{appViewMode === 'nuclides' ? 'Decay Map' : 'Particles Map'}</span>
             <ChevronDown className="w-3 h-3" />
           </button>
 
