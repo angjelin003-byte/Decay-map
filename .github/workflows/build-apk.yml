@@ -24,17 +24,14 @@ jobs:
       - name: Install Node Dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Build Web Application
-        run: npm run build
-
       - name: Set up Java JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Sync Capacitor Android
-        run: npx cap sync android
+      - name: Build App & Sync Capacitor Android
+        run: npm run build:apk
 
       - name: Set up Gradle Executable Permission
         run: chmod +x android/gradlew
